@@ -6,7 +6,7 @@
 | ------------------- | ------------------------------------------------------- |
 | 1      | [Data Cleaning & Exploration](./01-datacleaning-exploration.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/01-datacleaning-exploration.html) |
 | 2      | [Topic Modeling with no covariates]() / [HTML]() |
-| 2      | [Topic Modeling with covariates]() / [HTML]() |
+| 3      | [Topic Modeling with covariates]() / [HTML]() |
 
 Additionally, you can go to the GitHub for [topicApp](https://github.com/wesslen/topicApp/) for instructions on how to use the Shiny app instead.
 
@@ -20,7 +20,7 @@ These materials assumes you have basic knowledge of how to :
 * Install R packages via CRAN
 * Handle R dataframes with [`tidyverse`](http://tidyverse.org/) packages like [`ggplot`](http://ggplot2.tidyverse.org/), [`dplyr`](http://dplyr.tidyverse.org/), and [`readr`](http://readr.tidyverse.org/)
 * [`rmarkdown`](http://rmarkdown.rstudio.com/articles_intro.html) knowledge
-* [`quanteda`](http://quanteda.io/index.html)
+* [`quanteda`](http://quanteda.io/index.html) knowledge
 
 
 ### Preparation
@@ -30,7 +30,7 @@ You will need [R](https://cran.r-project.org/) and [RStudio](https://www.rstudio
 Also, please install these packages by running this code:
 
 ```{r}
-packages <- c("tidyverse","stm")
+packages <- c("tidyverse","stm","quanteda","RColorBrewer","wordcloud")
 
 install.packages(packages)
 ```
