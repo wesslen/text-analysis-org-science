@@ -1,0 +1,341 @@
+---
+title: "Text Mining Leadership Survey: Cleaning & Exploration"
+date: "Oct 12, 2017"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
+```
+  
+## Overview
+
+This RMarkdown file is an annotated R code that combines written text with R code along with the accompanying output. This code is rendered into a HTML file to allow users to view the code and output without having to run the code individually.
+
+Users without any experience in RMarkdown, should consult R Studio's [RMarkdown tutorial](http://rmarkdown.rstudio.com/lesson-1.html) lessons on how to run the code.
+
+Users without any experience in [quanteda](http://quanteda.io/index.html), should consider first reviewing its [Getting Started](http://quanteda.io/articles/quickstart.html) tutorial. This will provide context of many terms and functions used in this document and is especially critical for users without experience in computer assisted text analysis or natural language processing.
+
+Further, this resource references many functions from [tidyverse](https://www.tidyverse.org/), the standard library of R packages and users are expected to have some knowledge of the most critical aspects (e.g., dplyr, piping). Users without any experience should consider one of many resources [for example, here](https://www.tidyverse.org/learn/) to learn the most basic tidyverse functions.
+
+## Design & Data Collection
+
+### Load the data
+
+First, let's load the data. We'll use the `readr` package that is embedded in the `tidyverse` package.
+
+```{r load-data}
+library(tidyverse) #install.packages("tidyverse") if you do not have the package
+
+file <- "./TMM_FullDataset.csv"
+responses <- read_csv(file)
+```
+
+This file includes 753 records and 52 columns. 
+
+### Invalid Records
+
+Let's remove any invalid records for users who did not complete the survey.
+
+For example, let's explore the "Progress" field that shows the percentage of completion.
+
+```{r}
+responses %>% 
+  group_by(Progress) %>% 
+  summarise(Count=n())
+```
+
+So only 585 of the 753 records were completed (i.e. 100 = 100%). 
+
+Let's use the `filter` function to keep completed responses (i.e. Progress = 100%).
+
+```{r warning=FALSE}
+responses <- filter(responses, Progress == 100)
+```
+
+### Text Quality
+
+Let's look at a few examples to determine the quality of the responses (e.g., misspellings, grammatical mistakes).
+
+```{r warning=FALSE}
+responses$Q4[1:3]
+```
+
+First, it looks like these responses are written in clear English -- unlike Tweets that use slang or abbreviations. Some responses do not have perfect grammar (e.g. sample 3: "him. he does not"), but this is a minor problem. We will standardize responses by converting all letters into lower case and removing punctuation in our pre-processing.
+
+`quanteda` also offers a helpful `textstat_readability` function to measure many different indexes (47 different types) of readability (e.g. Flesch.Kincaid). For more information, please see [Flesch-Kincaid readability test Wikipedia page](https://en.wikipedia.org/wiki/Flesch%E2%80%93Kincaid_readability_tests).
+
+```{r}
+library(quanteda)
+readability <- textstat_readability(responses$Q4)
+
+hist(readability$Flesch.Kincaid, 
+     xlim = c(0,40), 
+     breaks = 200, 
+     xlab = "Flesch-Kincaid Score", 
+     main = "Histogram of Flesch-Kincaid Scores")
+```
+
+### Length of responses 
+
+Let's explore the histogram of tokens (i.e., words). We will look at the total number of tokens. (Alternatively, you can view the number of unique tokens by changing the function `ntoken()` to `ntype()`).
+
+```{r}
+hist(ntoken(responses$Q4), 
+     breaks = 20,  
+     main = "# of Words per Response: Relationship With Manager (Q4)", 
+     xlab = "Number of Words")
+hist(ntoken(responses$Q5), 
+     breaks = 20,  
+     main = "# of Words per Response: Manger Understand Needs (Q5)", 
+     xlab = "Number of Words")
+```
+
+In our case, most of our responses had between 50-100 words.
+
+```{r}
+hist(nchar(responses$Q4), 
+     breaks = 20,  
+     main = "# of Characters per Response: Relationship With Manager (Q4)", 
+     xlab = "Number of Characters")
+hist(nchar(responses$Q5), 
+     breaks = 20,  
+     main = "# of Characters per Response: Manger Understand Needs (Q5)", 
+     xlab = "Number of Characters")
+```
+
+Let's find outliers who responded with less than 10 words.
+
+```{r}
+maxWords <- 10
+
+responses$Q5[which(ntoken(responses$Q5)<maxWords)]
+```
+
+### Covariates: Explore & Extraction
+
+Before running our analysis, we need to prepare any covariates that we'll use in our analysis. 
+
+First, let's look at how many responses we have by two attributes (covariates): the gender of the respondee and the gender of his/her manager. These two variables will be our focus on how they impact what topics are covered in the responses.
+
+```{r exploratory}
+responses %>% 
+  group_by(Q8, Q9) %>% 
+  summarise(Count = n())
+```
+
+Recall, Q8 = Manager (Leader) Gender, Q9 = Gender of Respondee. These two variables look good and do not need any additional data preparation.
+
+Let's also consider location and occupation. For both of these responses, they were open-ended in which respondents could write in any text. This led to many values.
+
+After examining this list, we were able to create a list of two values: domestic (anywhere in the U.S.) and international (anywhere outside of the U.S.).
+
+```{r}
+non.us <- c("Australia","Canada","Colombia","Ecuador","Finland","Greece","india","India","INDIA","Indonesia","italy","Nepal","Phillipines","Sri Lanka","UK","Ukraine","United Kingdom","united kingdom", "venezuela","Venezuela")
+
+responses$country <- ifelse(responses$Q7 %in% non.us,"International","Domestic")
+
+table(responses$country)
+```
+
+For occupation, we have multiple categories that are sparsely populated for some categories. 
+
+Let's group them into three categories: managment, analyst and entry level.
+
+```{r}
+table(responses$Q13)
+```
+
+```{r}
+# start with all values Management
+responses$occupation <- "Management"
+# replace Analyst level
+responses$occupation[responses$Q13 == "Analyst / Associate"] <- "Analyst"
+# replace Entry Level
+responses$occupation[responses$Q13 %in% c("Entry Level","Intern")] <- "Entry Level"
+
+table(responses$occupation)
+```
+
+## Quanteda Text Analysis
+
+### Cleaning
+
+Before running the analysis, we need to do two manual cleanups. These are steps that are unique to this dataset but may be required for any dataset.
+
+First, since we combined both of our questions (Q4 and Q5), let's first create a character vector that contains our text, aptly named `text`.
+
+Second, let's remove specific cases 
+
+```{r}
+text <- c(responses$Q4,responses$Q5)
+
+## Clean ups
+# remove cases where space not completed after sentence for tokenization (e.g. man.he => "man he")
+text <- gsub("[.]"," ",text)
+
+# clean up specific texts
+text[79]
+```
+
+To clean this record, we'll remove the characters after "basically the survey says..."
+
+```{r}
+text[79] <- substr(text[79],1,474)
+text[79+585] <- substr(text[79+585],1,551)
+```
+
+Or another example includes a user...
+
+```{r}
+text[714]
+```
+
+who wrote a valid response but then used "nono" to reach the minimum length requirement.
+
+We can similarly remove this text using the `substr()` function.
+
+```{r}
+text[714] <- substr(text[714],1,271) # clean the nononono record
+```
+
+Next, let's create the corpus and add the covariates.
+
+```{r}
+myCorpus <- corpus(text)
+
+# add in the attributes about the responses (for now, just the gender of respondee and manager)
+docvars(myCorpus, "ManagerGender") <- c(responses$Q8,responses$Q8)
+docvars(myCorpus, "SelfGender") <- c(responses$Q9,responses$Q9)
+
+docvars(myCorpus, "Question") <- c(rep("Q4",585),rep("Q5",585))
+docvars(myCorpus, "Country") <- c(responses$country, responses$country)
+docvars(myCorpus, "Occupation") <- c(responses$occupation, responses$occupation)
+```
+
+Let's create our document-feature matrix with only basic preprocessing (standard stop words, unigrams, no stemming). 
+
+Recall, the document-feature includes the document-term matrix (counts of each term in each document) along with the covariates (features) we just provided above like the country and occupation of the respondent.
+
+### Tokenize, Stemming, Uni/Bi/Tri-grams, Stop Words (dfm)
+
+Let's run text pre-processing.
+
+```{r}
+dfm <- dfm(myCorpus, 
+           remove = c(stopwords("english")), 
+           ngrams=1L, 
+           stem = F, 
+           remove_numbers = T, 
+           remove_punct = T, 
+           remove_symbols = T, 
+           remove_hyphens = F)
+
+topfeatures(dfm,25)
+```
+
+Let's explore removing sparse terms.
+
+In addition to removing the standard list of stop words (stopwords("english")), we've added a list of additional stop words.
+
+```{r}
+extra.stop <- c('always','will','can','job','us','get','also','much','well','way','like','things','one','make','really','just','take','lot','even','done','something','go','sure','makes','every','come','say','many','often','see','little','want','though','without','going','takes','someone','however','comes','usually','may','office','thing','making','along','since','long','back','similar','goes','put','getting','another','keep','related','else','now','seems','co')
+
+dfm <- dfm(myCorpus, 
+           remove = c(stopwords("english"), extra.stop), 
+           ngrams = 1L, 
+           stem = F, 
+           remove_numbers = T, 
+           remove_punct = T, 
+           remove_symbols = T, 
+           remove_hyphens = F)
+
+dfm <- dfm_trim(dfm, min_docfreq = 2)
+
+topfeatures(dfm,25)
+```
+
+Can you see the differences between the second iteration after we removed the additional stop words?
+
+Let's plot two word clouds -- one as a whole and the second by respondee country. 
+
+```{r fig.height=8, fig.width=8}
+library(RColorBrewer)
+
+textplot_wordcloud(
+  dfm,
+  scale = c(3.5, .75),
+  colors = brewer.pal(8, "Dark2"),
+  random.order = F,
+  rot.per = 0.1,
+  max.words = 100
+)
+
+cdfm <- dfm(
+  myCorpus,
+  group = "Country",
+  remove = c(stopwords("english"), extra.stop),
+  stem = F,
+  remove_numbers = T,
+  remove_punct = T,
+  remove_symbols = T,
+  remove_hyphens = F
+)
+
+textplot_wordcloud(
+  cdfm,
+  comparison = T,
+  scale = c(3.5, .75),
+  colors = brewer.pal(8, "Dark2"),
+  random.order = F,
+  rot.per = 0.1,
+  max.words = 100
+)
+```
+
+This suggest that Domestic participants used "development" more often than International participants. Yet a problem with exploratory words clouds is that they do not measure the difference -- especially with statistical inferece. Let's keep this in mind for when we run topic modeling.
+
+```{r warning=FALSE}
+textplot_wordcloud(
+  tfidf(dfm),
+  scale = c(3.5, .75),
+  colors = brewer.pal(8, "Dark2"),
+  random.order = F,
+  rot.per = 0.1,
+  max.words = 100
+  )
+```
+
+We can use word clustering to identify words that co-occur together.
+
+```{r}
+wordDfm <- dfm_sort(dfm_weight(dfm, "frequency"))
+wordDfm <- t(wordDfm)[1:50,]  # because transposed
+wordDistMat <- dist(wordDfm)
+wordCluster <- hclust(wordDistMat)
+plot(wordCluster, xlab="", main="Raw Frequency weighting")
+```
+
+Think of this plot as a crude way of identifying topics. Also, this plot (called a dendrogram) can help us identify "meaningless" words (e.g. also, like, really) that we could eliminate as stop words. For now, we will keep all words (except the most basic list of stop words) but note these words in case we decide we want to remove them later on.
+
+Another interesting take on this plot is not use the raw frequencies (word counts) but instead use the [TF-IDF](https://en.wikipedia.org/wiki/Tf%E2%80%93idf) weightings, which re-weights the words focusing less on words that are either rarely used or used too frequently. 
+
+We can rerun the plot with TF-IDF by changing the "frequency" to "tfidf" in the second line of the code.
+
+```{r}
+wordDfm <- dfm_sort(dfm_weight(dfm, "tfidf"))
+wordDfm <- t(wordDfm)[1:50,]  # because transposed
+wordDistMat <- dist(wordDfm)
+wordCluster <- hclust(wordDistMat)
+plot(wordCluster, xlab="", main="TF-IDF weighting")
+```
+
+## Save Image & Libraries Used
+
+```{r}
+save.image(file = "01-datacleaning-exploration.RData")
+sessionInfo()
+```
