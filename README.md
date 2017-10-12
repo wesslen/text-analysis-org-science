@@ -5,8 +5,8 @@
 | Part | Text Analysis using Topic Modeling in R   |
 | ------------------- | ------------------------------------------------------- |
 | 1      | [Data Cleaning & Exploration](./01-datacleaning-exploration.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/01-datacleaning-exploration.html) |
-| 2      | [Topic Modeling with no covariates]() / [HTML]() |
-| 3      | [Topic Modeling with covariates]() / [HTML]() |
+| 2      | [Topic Modeling with no covariates](./02-topicmodel-nocovariates.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/02-topicmodel-nocovariates.html) |
+| 3      | [Topic Modeling with covariates](./03-stm-covariates.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/03-stm-covariates.html) |
 
 Additionally, you can go to the GitHub for [topicApp](https://github.com/wesslen/topicApp/) for instructions on how to use the Shiny app instead.
 
