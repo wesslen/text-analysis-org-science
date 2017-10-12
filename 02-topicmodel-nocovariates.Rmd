@@ -1,0 +1,278 @@
+---
+title: "Text Mining Leadership Survey: Topic Models (no covariates)"
+date: "Oct 12, 2017"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, 
+                      tidy.opts=list(width.cutoff=80), tidy=TRUE)
+```
+  
+## Reload Previous Image
+
+### Load the image
+
+We'll first start to reload our data that was completed after part 1. 
+
+See the code from part 1 to understand how the data was created.
+
+```{r load data}
+load("01-datacleaning-exploration.RData")
+```
+
+## Topic Modelings
+
+### Baseline Model
+
+First, we'll need to call the `stm` package. If you do not have the package, run the command `install.packages("stm")` to install it.
+
+Note that while we're going to use the `stm` packages, for this iteration, we will not include covariates which effectively reduce the model to standard topic modeling. Technically, the `stm` package uses the Correlated Topic Model rather than vanilla Latent Dirichlet Allocation (LDA), which improves the measurement of the correlations between the topics.
+
+Before running stm, we'll need to convert the dfm (based on the `quanteda` package) to the data structure that stm uses through the `convert` function.
+
+Next, we'll examine what is the minimum frequency of word occurrences we want to remove sparse (very rare) terms. For now, we'll only eliminate all terms that are used less than three times (e.g. `lower.thresh = 3`). We may adjust this up once we get more data.
+
+Last, we'll create a data structure, labeled `out`, that includes our data structure, the words and the metadata (covariates).
+
+```{r fig.height=4}
+library(stm); library(quanteda)
+
+# use quanteda converter to convert our Dfm
+stmdfm <- convert(dfm, to = "stm", docvars = docvars(myCorpus))
+
+plotRemoved(stmdfm$documents, lower.thresh = seq(1, 80, by = 20))
+
+out <- prepDocuments(stmdfm$documents, stmdfm$vocab, stmdfm$meta, lower.thresh = 3)
+```
+
+#### Choosing the Number of Topics
+
+STM offers a great function that allows us to run topic modeling multiple times to determine the "best fitting" number of topics. Note -- this step can take several minutes as its running topic modeling under different scenarios (different number of topics).
+
+```{r results="hide"}
+ K<-c(5,10,20,30,50,75,100) 
+ kresult <- searchK(out$documents, out$vocab, K , 
+                    data = out$meta, max.em.its=150, init.type = "Spectral")
+```
+
+```{r}
+ plot(kresult)
+```
+
+This result shows the performance of running different scenarios of topic models with different number of topics.
+
+Held-out likelihood measure the predictive strength of each model on an out-of-sample (held-out) dataset. Values closer to zero (i.e. higher on the y-axis) are better than large negative values; therefore, the plot shows 100 topic model is the best fit model from a prediction standpoint. 
+
+Alternatively, if our goal is interpretation, it may be better to consider the "Semantic Coherence", which is a way to measure the average interpretability of the topics. Like the held-out likelihood, a model with an average value closer to zero (e.g. 10 topics) can be thought of being more interpretable than a model with lower values. Using this metric, we'd also select the 10 topic model. 
+
+One note -- in most topic models, the best fitting model using the held-out likelihood may not be the most interpretable (e.g. best Semantic Coherence values). See [Chang et al. 2009](https://www.umiacs.umd.edu/~jbg/docs/nips2009-rtl.pdf).
+
+Let's assume our goal is more interpretation. From this perspective either 20 or 30 topics could be work well that has high interpretation but with adequate prediction (although not necessarily maximum).
+
+#### Run the baseline model:
+
+Next, we will run our baseline model without any covariates. First, we set k equal to 10 for our number of topics and then run our model.
+
+```{r results="hide"}
+k <- 10
+
+stmFit <- stm(out$documents, 
+              out$vocab, 
+              K = k,  
+              max.em.its = 150, 
+              data = out$meta, 
+              init.type = "Spectral", 
+              seed = 300)
+```
+
+After running our results, we've created a new data object (stmFit) that includes all of our model information.
+
+We can then pass the model information to a plot function to summarise the results.
+
+```{r}
+plot(stmFit, 
+         type = "summary", 
+         xlim = c(0,.7),
+         ylim = c(0,10.4),
+         n =5,
+         main = "Survey Topics", 
+         width = 10,
+         text.cex = 1)
+```
+
+Next, let's create a dataframe named topic that provides the topic number, name, and expected topic size (proportions).
+
+We also saved the topic labels into an object called topicNames.
+
+```{r}
+topic <- data.frame(
+  topicnames = paste0("Topic ",1:k),
+  TopicNumber = 1:k,
+  TopicProportions = colMeans(stmFit$theta))
+
+topicNames <- labelTopics(stmFit)
+```
+
+#### Topic Labels
+
+For this, we'll plot the 20 words that best describe each topic. First, we'll plot each topic (each "row") using two measures: the topic probability (left column) and the FREX (right column).
+
+The left column of topics show the words based on the typical topic model output: word-topic probabilities. Also, we'll use the FREX that reweights the word-topic probabilities to emphasize the words that are more "frequent" and more "exclusive" for each topic (hence "FR" + "EX"). For more details on FREX, see page 5 of [Roberts et al. (2013)](http://scholar.harvard.edu/dtingley/files/topicmodelsopenendedexperiments.pdf).
+
+```{r}
+par(mfrow = c(3,2),mar = c(1, 1, 2, 1))
+for (i in 1:k){
+  plot(stmFit, type = "labels", n = 20, topics = i, main = "Raw Probabilities", width = 40)
+  plot(stmFit, type = "labels", n = 20, topics = i, main = "FREX Weights", labeltype = "frex", width = 50)
+}
+```
+
+Ultimately, our goal is to give names (labels) for each topic. We'll then use those labels instead of calling each by its number (which is essentially meaningless). Typically, the first couple of words in the FREX scores provide ideal one or two-word names for the topics. We'll need to decide on the labels as a group and (ideally) with names that are consistent with any theoretical frameworks you're aware of with respect to leadership.
+
+We can also manually output the top words for each topic using the word probabilities ("Highest Prob"), FREX and two other measurements (Lift and Score). Let's consider topic 7.
+
+```{r}
+labelTopics(stmFit, 7)
+```
+
+Another way of interpretating the topics can be to find the most representative document (in this case responses) for each topic. Essentially, we can find the document (the first 200 characters) that best exemplifies the topic. Let's again consider topic 7.
+
+```{r}
+shortdoc <- substr(text,1,300)
+findThoughts(stmFit, texts = shortdoc, n = 5, topics = 7)
+```
+
+In the case of topic 3, we can give this topic the label "Understands Problems" as it seems the major words are "needs", "understands", "problems" and "supports".
+
+Doing the same thing for all topics, we can give all the topics labels.
+
+```{r}
+topicNames <- labelTopics(stmFit)
+topic <- data.frame(
+  topicnames = c(
+    "Clients",
+    "Progress/Advancement",
+    "Training",
+    "Listens to my Problems",
+    "Shows Respect",
+    "Team Members",
+    "Coaching & Mentoring",
+    "Manager Understands",
+    "Boss' Help for Day-to-Day Problems",
+    "Time Management"
+  ),
+  TopicNumber = 1:k,
+  TopicProportions = colMeans(stmFit$theta),
+  stringsAsFactors = F
+)
+```
+
+#### Interpretability
+
+We can also use the Semantic Coherence and Exclusivity to measure the interpretability of each topic.
+
+```{r}
+topicQuality(stmFit, documents = out$documents)
+```
+
+Essentially, topics that have a higher coherence (i.e. more right on the x-axis) tend to be interpretable. On the other hand, topics on the left have a lower semantic coherence and tend to be less interpretable. This sometimes can be because that topic is a mixture of two or more sub-topics. This topic may separated if we moved to more topics. This is important when we run inference and need to interpret the results.
+
+The exclusivitiy measure helps to identify which topics contain words that are more unique to that topic. Topics with a lower exclusivity (e.g. Topic 9) tend to include words that are used in a lot of other topics; hence, it tends to be more of a "generic" topic. 
+
+Typically, topics with a low exclusivity score also are less interpretable. 
+
+Alternatively, topics with higher exclusitivity have more distinctive words and tend to be easier to interpret (e.g. topic 5, was easy to interpret as "shows respect" from the words).
+
+Using both measures, we can think of topics that are in the top right to be the most interpretable: high exclusitivity (unique words) and high semantic coherence (consistency of the words).
+
+#### Topic Comparisons
+
+We can also examine the relationships between topic words visually using the `plot.STM' perspectives plots. The perpectives plot is a built-in function that allows you to compare the words between two topics: finding which words are similar (near the center/middle of the plot) and what words are different (near the left or right edges, depending on how different it is from each topic).
+
+For example, we can compare the words used for topic 1 and topic 3. 
+
+```{r fig.width=8}
+plot(stmFit, type = "perspectives", topics = c(1,3))
+```
+
+Note that the words that are in the middle are shared by these topics whereas words near the left or right side are more unique to the topic (relative to the other topic). Please see the stm documentation for more details on the plots (e.g. type "?plot.STM" into the console).
+
+## Topic Correlations
+
+Last, we can examine the topics as a network in which each node (dot) is a topic and each edge (line) is whether the topics have significant correlation (shared words) between themselves. To measure this, we have to set a threshold for the minimum correlation required to have an edge. There is not a perfect way to set the minimum correlation value; trial and error may be the best strategy.
+
+```{r}
+library(igraph); library(visNetwork)
+
+threshold <- 0.1
+
+cormat <- cor(stmFit$theta)
+adjmat <- ifelse(abs(cormat) > threshold,1,0)
+
+links2 <- as.matrix(adjmat)
+net2 <- graph_from_adjacency_matrix(links2, mode = "undirected")
+net2 <- igraph::simplify(net2,  remove.multiple = FALSE, remove.loops = TRUE) 
+
+data <- toVisNetworkData(net2)
+
+nodes <- data[[1]]
+edges <- data[[2]]
+```
+
+We can now run an algorithm that automatically detects clusters (communities) within the network. 
+
+We'll use those clusters for the node colors.
+
+```{r}
+# Community Detection
+clp <- cluster_label_prop(net2)
+nodes$community <- clp$membership
+qual_col_pals = RColorBrewer::brewer.pal.info[RColorBrewer::brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(RColorBrewer::brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+col_vector <- c(col_vector,col_vector)
+
+col <- col_vector[nodes$community+1]
+
+links <- igraph::as_data_frame(net2, what="edges")
+nodes <- igraph::as_data_frame(net2, what="vertices")
+```
+
+Last, we can specify parameters on the network like shape, title, label, size and borderwidth.
+
+For example, the node size is proportional to the topic proportions (weighted by the largest topic proportion) and multiplied by 40 to adjust to the visNetwork baseline settings. We can also specify other information about the network.
+
+```{r}
+# save the topic proportions
+TopicProportions = colMeans(stmFit$theta)
+
+#visNetwork preferences
+nodes$shape <- "dot"  
+nodes$shadow <- TRUE # Nodes will drop shadow
+nodes$title <- topic$topicnames # Text on click
+nodes$label <- topic$topicnames # Node label
+nodes$size <- (TopicProportions / max(TopicProportions)) * 40 # Node size
+nodes$borderWidth <- 2 # Node border width
+
+nodes$color.background <- col
+nodes$color.border <- "black"
+nodes$color.highlight.background <- "orange"
+nodes$color.highlight.border <- "darkred"
+nodes$id <- 1:nrow(nodes)
+```
+
+Last, let's run visNetwork to produce an interactive network.
+
+```{r}
+visNetwork(nodes, links, width="100%",  height="600px",main="Topic Correlations")
+```
+
+## Save Image & Libraries Used
+
+```{r}
+save.image(file = "02-topicmodel-nocovariates.RData")
+sessionInfo()
+```
