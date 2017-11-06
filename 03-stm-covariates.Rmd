@@ -1,0 +1,350 @@
+---
+title: "Text Mining Leadership Survey: Topic Models (with covariates)"
+date: "Oct 30, 2017"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+  
+## Reload Previous Image
+
+### Load the image
+
+We'll first start to reload our data that was completed after part 1. 
+
+See the code from part 1 to understand how the data was created.
+
+```{r load data}
+load("01-datacleaning-exploration.RData")
+```
+
+## Structural Topic Modeling
+
+### Baseline Model
+
+Let's run (structural) topic modeling using the `stm` package. 
+
+First, we'll need to call the `stm` package. If you do not have the package, run the command `install.packages("stm")` to install the package.
+
+Before running stm, we'll need to convert the dfm (based on the `quanteda` package) to the data structure that stm uses through the `convert` function.
+
+Next, we'll examine what is the minimum frequency of word occurrences we want to remove sparse (very rare) terms. For now, we'll only eliminate all terms that are used less than twice (e.g. `lower.thresh = 2`). We may adjust this up once we get more data.
+
+Last, we'll create a data structure (`out`) that includes our data structure, the words and the metadata (covariates).
+
+```{r fig.height=6}
+library(stm); library(quanteda)
+
+# use quanteda converter to convert our Dfm
+stmdfm <- convert(dfm, to = "stm", docvars = docvars(myCorpus))
+
+plotRemoved(stmdfm$documents, lower.thresh = seq(1, 80, by = 20))
+
+out <- prepDocuments(stmdfm$documents, stmdfm$vocab, stmdfm$meta, lower.thresh = 3)
+```
+
+#### Run the baseline model:
+
+For this example, we will include five topics for the sake of parsimony. Review part 2 to consider ways to run validations on the number of topics.
+
+Let's run the model with two covariates: country and occupation. We will pass them through the `prevalence` parameter using a "+" to link both values.
+
+```{r results="hide"}
+k <- 5
+
+stmFit <- stm(out$documents, out$vocab, K = k, prevalence =~ Country + Occupation, 
+              max.em.its = 150, data = out$meta, init.type = "Spectral", seed = 300)
+```
+
+We can then plot the topic summaries...
+
+```{r}
+plot(stmFit, 
+         type = "summary", 
+         xlim = c(0,.8),
+         ylim = c(0.4, k + .4),
+         n =5,
+         main = "Survey Topics", 
+         width = 10,
+         text.cex = 1)
+```
+
+...as well as save information about the topics that will make it easier to identify them later on.
+
+```{r}
+topicNames <- labelTopics(stmFit)
+topic <- data.frame(
+  topicnames = paste0("Topic ",1:k),
+  TopicNumber = 1:k,
+  TopicProportions = colMeans(stmFit$theta))
+```
+
+#### Topic Labels
+
+For this, we'll plot the 20 words that best describe each topic. First, we'll plot each topic (each "row") using two measures: the topic probability (left column) and the FREX (right column).
+
+The left column of topics show the words based on the typical topic model output: word-topic probabilities. Also, we'll use the FREX that reweights the word-topic probabilities to emphasize the words that are more "frequent" and more "exclusive" for each topic (hence "FR" + "EX"). For more details on FREX, see page 5 of [Roberts et al. (2013)](http://scholar.harvard.edu/dtingley/files/topicmodelsopenendedexperiments.pdf).
+
+```{r}
+par(mfrow = c(3,2),mar = c(1, 1, 2, 1))
+for (i in 1:k){
+  plot(stmFit, type = "labels", n = 20, topics = i, main = "Raw Probabilities", width = 40)
+  plot(stmFit, type = "labels", n = 20, topics = i, main = "FREX Weights", labeltype = "frex", width = 50)
+}
+```
+
+Ultimately, our goal is to give names (labels) for each topic. We'll then use those labels instead of calling each by its number (which is essentially meaningless). Typically, the first couple of words in the FREX scores provide ideal one or two-word names for the topics. We'll need to decide on the labels as a group and (ideally) with names that are consistent with any theoretical frameworks you're aware of with respect to leadership.
+
+We can also manually output the top words for each topic using the word probabilities ("Highest Prob"), FREX and two other measurements (Lift and Score). Let's consider topic 3.
+
+```{r}
+labelTopics(stmFit, 3)
+```
+
+Another way of interpretating the topics can be to find the most representative document (in this case responses) for each topic. Essentially, we can find the document (the first 200 characters) that best exemplifies the topic. Let's again consider topic 3.
+
+```{r}
+shortdoc <- substr(text,1,300)
+findThoughts(stmFit, texts = shortdoc, n = 5, topics = 3)
+```
+
+In the case of topic 3, we can give this topic the label "Provides Support" as it seems the major words are "provide(s)", "coaching", "mentors" and "help".
+
+We can give all the topics labels by following the same procedure for each. To rename the topics, use the following code. 
+
+```{r}
+topicNames <- labelTopics(stmFit)
+topic <- data.frame(
+  topicnames = c(
+    "Problem Solving",
+    "Time Management",
+    "Provides Support",
+    "Ask Questions",
+    "Shows Respect"
+  ),
+  TopicNumber = 1:k,
+  TopicProportions = colMeans(stmFit$theta),
+  stringsAsFactors = F
+)
+```
+
+#### Interpretability
+
+We can also use the Semantic Coherence and Exclusivity to measure the interpretability of each topic.
+
+```{r}
+topicQuality(stmFit, documents = out$documents)
+```
+
+Essentially, topics that have a higher (i.e. more right on the x-axis) tend to be interpretable. On the other hand, topics on the left have a lower semantic coherence. This sometimes can be because that topic is a mixture of two or more sub-topics. This topic may separate if we moved to 6 topics. This is important when we run inference and need to interpret the results.
+
+The exclusivitiy measure helps to identify which topics contain words that are more unique to that topic. Words with a lower exclusivity (e.g. Topic 3) tend to include words that are used in a lot of other topics; hence, it tends to be more of a "generic" topic. Typically, topics with a low exclusivity score also are less interpretable. In the case of topic 2, it has the most distinctive words given its high exclusivity.
+
+#### Topic Comparisons
+
+We can also examine the relationships between topic words visually using the `plot.STM' perspectives plots. 
+
+For example, we can compare the words used for topic 1 and topic 3. 
+
+```{r fig.width=8}
+plot(stmFit, type = "perspectives", topics = c(1,3))
+```
+
+Note that the words that are in the middle are shared by these topics whereas words near the left or right side are more unique to the topic (relative to the other topic).
+
+## Covariate Analysis
+
+Next, let's examine the effects country and occupation have on the topic proportions.
+
+To analyze this, we'll need to first run the `estimateEffect` function that runs a series of multinomial regression models.
+
+```{r include=FALSE}
+prep <- estimateEffect(1:k ~ Country + Occupation, stmFit, meta = out$meta, uncertainty = "Global")
+```
+
+### Effect of Country
+
+With the regression results saved as the `prep` data structure, we can use the STM plot function to examine the differences.
+
+```{r country}
+Result <- plot(prep, "Country", method = "difference", 
+               cov.value1 = "Domestic", cov.value2 = "International", 
+               verbose.labels = F, 
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "International                        Not Significant                       Domestic",
+               main = "Effect of Country on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+Alternatively, we can reorder the coefficients by their rank to aid in intrepretating the visualization.
+
+```{r}
+# order based on Expected Topic Proportion
+trank = order(unlist(Result$means))
+temp.topic <- topic[trank,]
+
+x <- plot(prep, "Country", method = "difference", 
+               cov.value1 = "Domestic", cov.value2 = "International", 
+               verbose.labels = F, 
+               topics = temp.topic$TopicNumber,
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = temp.topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "International                        Not Significant                       Domestic",
+               main = "Effect of Country on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+The way we can interpret this is that international respondees discussed the issue of problem solving much more significantly than domestic respondees. Alternatively, domestic respondees discussed topics on "providing support", "respect", and "asking questions" more prevalently than International respondees. 
+
+### Effect of Occupation
+
+We can plot the effect of Occupation. Since this field has three categories, we need to run as two binary columns. We'll use "Entry Level" as the baseline.
+
+#### Entry Level vs Analyst
+
+First, let's examine the relationship between "Entry Level" and "Analyst":
+
+```{r occupation1}
+Result <- plot(prep, "Occupation", method = "difference", 
+               cov.value1 = "Analyst", cov.value2 = "Entry Level", 
+               verbose.labels = F, 
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Entry Level                        Not Significant                       Analyst",
+               main = "Effect of Occupation on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+```{r}
+# order based on Expected Topic Proportion
+orank = order(unlist(Result$means))
+temp.topic <- topic[orank,]
+
+x <- plot(prep, "Occupation", method = "difference", 
+               cov.value1 = "Analyst", cov.value2 = "Entry Level", 
+               verbose.labels = F, 
+               topics = temp.topic$TopicNumber,
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = temp.topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Entry Level                        Not Significant                       Analyst",
+               main = "Effect of Occupation on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+In this example, we do not find a significant difference in the topics discussed by either entry level or analyst-level participants.
+
+#### Entry Level vs Analyst
+
+Next, let's consider "Entry Level" vs "Management":
+
+```{r occupation2}
+Result <- plot(prep, "Occupation", method = "difference", 
+               cov.value1 = "Management", cov.value2 = "Entry Level", 
+               verbose.labels = F, 
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Entry Level                        Not Significant                       Management",
+               main = "Effect of Occupation on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+```{r}
+# order based on Expected Topic Proportion
+orank = order(unlist(Result$means))
+temp.topic <- topic[orank,]
+
+x <- plot(prep, "Occupation", method = "difference", 
+               cov.value1 = "Management", cov.value2 = "Entry Level", 
+               verbose.labels = F, 
+               topics = temp.topic$TopicNumber,
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Entry Level                        Not Significant                       Management",
+               main = "Effect of Occupation on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+We find the same result for Entry Level versus Management. Essentially, we cannot find evidence that the role (occupation) had a significant effect on the topics discussed.
+
+### Gender Covariate
+
+Let's consider alternative covariates. In this example, we will include country (given we found it was significant for some topics) as well as the gender of both the user (SelfGender) and of the manager (ManagerGender).
+
+
+```{r, include=FALSE}
+prep2 <- estimateEffect(1:k ~ Country + SelfGender + ManagerGender, 
+                        stmFit, meta = out$meta, uncertainty = "Global")
+```
+
+We'll rerun the `estimateEffect` on our new variables.
+
+### Effect of Gender
+
+```{r gender}
+genderResult <- plot(prep2, "SelfGender", method = "difference",
+               cov.value1 = "Female", cov.value2 = "Male", 
+               verbose.labels = F,
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Male                        Not Significant                       Female",
+               main = "Effect of Gender on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+### Effect of Manager's Gender
+
+```{r manager-gender}
+mgrgenResult <- plot(prep2, "ManagerGender", method = "difference",
+               cov.value1 = "Female", cov.value2 = "Male", 
+               verbose.labels = F,
+               model = stmFit,
+               labeltype = "custom",
+               custom.labels = topic$topicnames,
+               ylab = "Exp Topic Difference", 
+               xlab = "Male                       Not Significant                       Female",
+               main = "Effect of Manager's Gender on Topic Prevelance",
+               xlim = c(-0.5,0.5),
+               width = 40,
+               ci.level = 0.95)
+```
+
+## Save Image & Libraries Used
+
+```{r}
+save.image(file = "03-topicmodel-covariates.RData")
+sessionInfo()
+```
