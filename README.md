@@ -8,7 +8,7 @@
 | 2      | [Topic Modeling with no covariates](./02-topicmodel-nocovariates.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/02-topicmodel-nocovariates.html) |
 | 3      | [Topic Modeling with covariates](./03-stm-covariates.Rmd) / [HTML](https://rawgit.com/wesslen/text-analysis-org-science/master/03-stm-covariates.html) |
 
-Additionally, you can go to the GitHub for [topicApp](https://github.com/wesslen/topicApp/) for instructions on how to use the Shiny app instead. We've also created a list of [Topic Modeling references](https://rawgit.com/wesslen/text-analysis-org-science/master/TopicModelingReadingList.html), which is a short list of about 40 papers/tutorials to aid in future research. By no means is this list exhaustive -- please email me (rwesslen@uncc.edu) if there are any suggestions to add to this list.
+Additionally, you can go to the GitHub for [topicApp](https://github.com/wesslen/topicApp/) for instructions on how to use the Shiny app instead. We've also created a list of [Topic Modeling references](https://rawgit.com/wesslen/text-analysis-org-science/master/TopicModelReadingList.html) [pdf](https://github.com/wesslen/text-analysis-org-science/raw/master/TopicModelReadingList.pdf), which is a short list of about 40 papers/tutorials to aid in future research. By no means is this list exhaustive -- please email me (rwesslen@uncc.edu) if there are any suggestions to add to this list.
 
 ## Setup and Preparation
 
