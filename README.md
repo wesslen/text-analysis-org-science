@@ -10,6 +10,8 @@
 
 Additionally, you can go to the GitHub for [topicApp](https://github.com/wesslen/topicApp/) for instructions on how to use the Shiny app instead. We've also created a list of [Topic Modeling references](https://rawgit.com/wesslen/text-analysis-org-science/master/TopicModelReadingList.html) [pdf](https://github.com/wesslen/text-analysis-org-science/raw/master/TopicModelReadingList.pdf), which is a short list of about 40 papers/tutorials to aid in future research. By no means is this list exhaustive -- please email me (rwesslen@uncc.edu) if there are any suggestions to add to this list.
 
+In addition to this archive, all of these materials have also been archived into a [Dataverse repository](https://dataverse.unc.edu/dataset.xhtml?persistentId=doi:10.15139/S3/R4W7ZS). The materials are identical to the materials provided in this GitHub repository.
+
 ## Setup and Preparation
 
 ### R Knowledge
