@@ -64,9 +64,9 @@
 
 - Grimmer, J (2010). [A Bayesian hierarchical topic model for political texts: measuring expressed agenda in Senate press releases](https://academic.oup.com/pan/article-abstract/18/1/1/1446901), Political Analysis, 18 (1).
 
-- Paul, M.J., and Dredze, M (2014). [Discovering health topics in social media using topic models](), PLoS ONE, 9(8), e103408.
+- Paul, M.J., and Dredze, M (2014). [Discovering health topics in social media using topic models](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0103408), PLoS ONE, 9(8), e103408.
 
-- Roberts, M.E., Stewart, B.M., Tingley, D., Lucas, C., Leder‐Luis, J., Gadarian, S.K., and Rand, D.G. (2014). [Structural Topic Models for Open‐Ended Survey Responses](http://onlinelibrary.wiley.com/doi/10.1111/ajps.12103/full). American Journal of Political Science, 58(4), 1064-1082.
+- Roberts, M.E., Stewart, B.M., Tingley, D., Lucas, C., Leder-Luis, J., Gadarian, S.K., Albertson, B., and Rand, D.G. (2014). [Structural Topic Models for Open-Ended Survey Responses](http://onlinelibrary.wiley.com/doi/10.1111/ajps.12103/full). American Journal of Political Science, 58(4), 1064-1082.
 
 - Lucas, C., Nielsen, R. A., Roberts, M. E., Stewart, B. M., Storer, A., & Tingley, D. (2015). [Computer-assisted text analysis for comparative politics](https://academic.oup.com/pan/article-abstract/23/2/254/1485288). Political Analysis, 23(2), 254-277.
 
